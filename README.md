@@ -3,7 +3,7 @@
 Automação em [n8n](https://n8n.io) que verifica toda semana os lembretes de manutenção da frota cadastrados na **Cobli** e envia ao grupo de WhatsApp da equipe um resumo único com os veículos que têm manutenção **vencida** ou **próxima do vencimento**.
 
 ![n8n](https://img.shields.io/badge/n8n-workflow-EA4B71?logo=n8n&logoColor=white)
-![WhatsApp](https://img.shields.io/badge/WhatsApp-alertas-25D366?logo=whatsapp&logoColor=white)
+![WhatsApp](https://img.shields.io/badge/WhatsApp-WAHA-25D366?logo=whatsapp&logoColor=white)
 ![REST](https://img.shields.io/badge/API-REST-0A66C2)
 
 ## O problema
@@ -30,7 +30,7 @@ flowchart LR
 2. **Filtro:** só seguem os lembretes com status diferente de `ON_TIME`, ou seja, `DELAYED` (vencido) e `WARNING` (em breve).
 3. **Enriquecimento:** para cada lembrete, o fluxo consulta o odômetro atual do veículo, para mostrar quantos km ele já rodou.
 4. **Mensagem:** um nó de código monta **uma única mensagem** com todos os alertas, vencidos primeiro. Cada bloco traz bolsão, placa, modelo, serviço, recorrência, quanto falta (ou há quanto venceu, em km ou dias) e a ação esperada.
-5. **Envio:** a mensagem vai para o grupo de WhatsApp da equipe por uma API HTTP de WhatsApp (endpoint `sendText`, com `session` e `chatId`).
+5. **Envio:** a mensagem vai para o grupo de WhatsApp da equipe pelo [WAHA](https://waha.devlike.pro) (WhatsApp HTTP API), endpoint `/api/sendText`.
 
 ### Exemplo de mensagem
 
@@ -73,8 +73,8 @@ Providenciar a manutenção com prioridade.
 1. No n8n: **Workflows → Import from File** → `workflows/Automação_de_Lembretes.json`.
 2. Nos nós **Buscar Manutenções Cobli** e **Buscar Odômetro Cobli**, preencha `cobli-api-key` (marcado com `<<PREENCHER>>`) com sua chave da API Cobli. De preferência, configure-a como credencial Header Auth.
 3. No nó **Enviar Alerta WhatsApp**:
-   - troque `http://127.0.0.1:3000` pelo endereço da sua API de WhatsApp;
-   - ajuste `session` e preencha `chatId` com o ID do grupo que vai receber os alertas.
+   - troque `http://127.0.0.1:3000` pelo endereço da sua instância do WAHA;
+   - ajuste `session` para o nome da sessão no WAHA e preencha `chatId` com o ID do grupo que vai receber os alertas (formato `...@g.us`).
 4. Se quiser, mude o dia e o horário no **Schedule Trigger**.
 5. Ative o fluxo.
 
