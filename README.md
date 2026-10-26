@@ -3,8 +3,10 @@
 Automação em [n8n](https://n8n.io) que verifica toda semana os lembretes de manutenção da frota cadastrados na **Cobli** e envia ao grupo de WhatsApp da equipe um resumo único com os veículos que têm manutenção **vencida** ou **próxima do vencimento**.
 
 ![n8n](https://img.shields.io/badge/n8n-workflow-EA4B71?logo=n8n&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-nós_Code-F7DF1E?logo=javascript&logoColor=black)
 ![WhatsApp](https://img.shields.io/badge/WhatsApp-WAHA-25D366?logo=whatsapp&logoColor=white)
 ![REST](https://img.shields.io/badge/API-REST-0A66C2)
+![Cobli](https://img.shields.io/badge/Cobli-manutenção_de_frota-555555)
 
 ## O problema
 
