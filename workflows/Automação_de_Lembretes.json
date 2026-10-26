@@ -1,0 +1,282 @@
+{
+  "name": "Automação de Lembretes",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.cobli.co/analytics/v1/maintenance/reminder/list",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "cobli-api-key",
+              "value": "<<PREENCHER>>"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2768,
+        -464
+      ],
+      "id": "e29454a1-47f3-4f62-a107-f4bbfda42489",
+      "name": "Buscar Manutenções Cobli"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "rows",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        2992,
+        -464
+      ],
+      "id": "0ce18fed-8bc6-431d-9b74-8b2b37f3ac25",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "aa72c4a8-107e-4726-a01a-3f451f548886",
+              "leftValue": "={{ $json.status.name }}",
+              "rightValue": "ON_TIME",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        3216,
+        -464
+      ],
+      "id": "1cf604f9-cfa7-4871-9816-40f5134101eb",
+      "name": "Filtrar Manutenções com Alerta"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================\n// MONTAR MENSAGEM WHATSAPP - MANUTENÇÃO ASTER\n// =====================================================\n\nconst registros = $input.all();\n\nfunction numero(valor) {\n  if (valor === null || valor === undefined || valor === '') {\n    return 'Não informado';\n  }\n\n  return Number(valor).toLocaleString('pt-BR');\n}\n\nfunction detalhes(item) {\n\n  const registro = item.json;\n  const d = registro.manutencao || {};\n  const odo = registro.odometro || {};\n\n  // VEÍCULO\n  const placa =\n    d.vehicle?.license_plate ||\n    registro.placa ||\n    'Não informada';\n\n  const marca = d.vehicle?.brand || '';\n  const modelo = d.vehicle?.model || '';\n  const ano = d.vehicle?.year || '';\n\n  // BOLSÃO\n  const bolsao =\n    d.vehicle?.group?.name ||\n    'Não informado';\n\n  // MANUTENÇÃO\n  const servico =\n    d.title || 'Manutenção';\n\n  const observacao =\n    d.description || 'Não informada';\n\n  const status =\n    d.status?.name ||\n    registro.status;\n\n  // ODÔMETRO REAL\n  const kmAtual =\n    odo.odometer_in_km;\n\n  // RECORRÊNCIA\n  let recorrencia = 'Não informada';\n\n  if (\n    d.recurrence_in_km !== null &&\n    d.recurrence_in_km !== undefined\n  ) {\n    recorrencia =\n      `A cada ${numero(d.recurrence_in_km)} km`;\n  }\n  else if (\n    d.recurrence_in_days !== null &&\n    d.recurrence_in_days !== undefined\n  ) {\n    recorrencia =\n      `A cada ${numero(d.recurrence_in_days)} dias`;\n  }\n\n  // STATUS VISUAL\n  let statusVisual = status || 'Não informado';\n\n  if (status === 'DELAYED') {\n    statusVisual = `🔴 *Vencido*`;\n  }\n  else if (status === 'WARNING') {\n    statusVisual = `🟠 *Em breve*`;\n  }\n\n  // DISTÂNCIA / PRAZO\n  let distanciaPrazo = 'Não informado';\n\n  if (\n    d.status?.km !== null &&\n    d.status?.km !== undefined\n  ) {\n\n    const km = Math.abs(Number(d.status.km));\n\n    distanciaPrazo =\n      status === 'DELAYED'\n        ? `Vencido há: *${numero(km)} km*`\n        : `Faltam: *${numero(km)} km*`;\n  }\n  else if (\n    d.status?.days !== null &&\n    d.status?.days !== undefined\n  ) {\n\n    const dias = Math.abs(Number(d.status.days));\n\n    distanciaPrazo =\n      status === 'DELAYED'\n        ? `Vencido há: *${numero(dias)} dia(s)*`\n        : `Faltam: *${numero(dias)} dia(s)*`;\n  }\n\n  // LIMITE\n  let limite = '';\n\n  if (\n    d.next_occurrence_in_km !== null &&\n    d.next_occurrence_in_km !== undefined\n  ) {\n    limite =\n      `Limite: *${numero(d.next_occurrence_in_km)} km*`;\n  }\n  else if (d.next_occurrence_date) {\n\n    const data = new Date(d.next_occurrence_date);\n\n    limite =\n      `Data limite: *${data.toLocaleDateString('pt-BR')}*`;\n  }\n\n  // AÇÃO\n  const acao =\n    status === 'DELAYED'\n      ? `🚨 *AÇÃO NECESSÁRIA*\\nProvidenciar a manutenção com prioridade.`\n      : `⚠️ *AÇÃO NECESSÁRIA*\\nProgramar a manutenção antes de atingir o limite.`;\n\n  // MENSAGEM\n  return `📍 *BOLSÃO: ${bolsao.toUpperCase()}*\n\n🚗 *VEÍCULO*\nPlaca: *${placa}*\nModelo: ${marca} ${modelo}${ano ? ` - ${ano}` : ''}\n\n🔧 *MANUTENÇÃO*\nServiço: ${servico}\nObservação: ${observacao}\nRecorrência: ${recorrencia}\n\n📊 *SITUAÇÃO*\nStatus: ${statusVisual}\n${distanciaPrazo}\nKM atual: *${numero(kmAtual)} km*\n${limite}\n\n${acao}`;\n}\n\n\n// =====================================================\n// CLASSIFICA OS ALERTAS\n// =====================================================\n\nconst vencidos = registros.filter(item => {\n  const status =\n    item.json.manutencao?.status?.name ||\n    item.json.status;\n\n  return status === 'DELAYED';\n});\n\nconst emBreve = registros.filter(item => {\n  const status =\n    item.json.manutencao?.status?.name ||\n    item.json.status;\n\n  return status === 'WARNING';\n});\n\n\n// Se não houver alerta, não gera mensagem\nif (vencidos.length === 0 && emBreve.length === 0) {\n  return [];\n}\n\n\n// Vencidos aparecem primeiro\nconst alertasOrdenados = [\n  ...vencidos,\n  ...emBreve\n];\n\n\n// =====================================================\n// MONTA UMA ÚNICA MENSAGEM\n// =====================================================\n\nconst mensagem = alertasOrdenados\n  .map(item => detalhes(item))\n  .join('\\n\\n━━━━━━━━━━━━━━\\n\\n');\n\n// =====================================================\n// OUTPUT\n// =====================================================\n\nreturn [{\n  json: {\n    total_alertas: alertasOrdenados.length,\n    total_vencidos: vencidos.length,\n    total_em_breve: emBreve.length,\n    mensagem\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3888,
+        -464
+      ],
+      "id": "2bebe28c-8709-4d86-af40-054323cd3e7c",
+      "name": "Montar Mensagem WhatsApp"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:3000/api/sendText",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n{\n  session: \"alertas_lembretes\",\n  chatId: \"<<PREENCHER>>\",\n  text: $json.mensagem\n}\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        4112,
+        -464
+      ],
+      "id": "d3a9bd6e-7816-42da-8f77-b24d791295df",
+      "name": "Enviar Alerta WhatsApp"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.cobli.co/public/v1/vehicles/{{ $json.vehicle.id }}/odometer",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "cobli-api-key",
+              "value": "<<PREENCHER>>"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3440,
+        -464
+      ],
+      "id": "042bebc2-7aad-44d0-87a7-1f9b3e5d1a57",
+      "name": "Buscar Odômetro Cobli"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        2544,
+        -464
+      ],
+      "id": "05d1cdee-7142-4a2b-97b7-853c816deaf5",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "682e618a-98d5-4b58-b3c4-017933d0df2d",
+              "name": "manutencao",
+              "value": "={{ $('Filtrar Manutenções com Alerta').item.json }}",
+              "type": "object"
+            },
+            {
+              "id": "a1875a84-d46b-4173-9b1f-ca23208b1f54",
+              "name": "odometro",
+              "value": "={{ $json.data }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        3664,
+        -464
+      ],
+      "id": "db2554d7-20a8-4556-8409-f5ca2ec53549",
+      "name": "Juntar Dados Manutenção + Odômetro"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Buscar Manutenções Cobli",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Manutenções Cobli": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Filtrar Manutenções com Alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar Manutenções com Alerta": {
+      "main": [
+        [
+          {
+            "node": "Buscar Odômetro Cobli",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Odômetro Cobli": {
+      "main": [
+        [
+          {
+            "node": "Juntar Dados Manutenção + Odômetro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Juntar Dados Manutenção + Odômetro": {
+      "main": [
+        [
+          {
+            "node": "Montar Mensagem WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Mensagem WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Enviar Alerta WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "tags": []
+}
